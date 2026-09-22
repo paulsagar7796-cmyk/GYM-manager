@@ -559,17 +559,33 @@ function MemberCard({
 }) {
   const { member, status, reminderUrl, planUrl } = row;
   const statusMeta = status ? getMemberStatusMeta(status) : null;
+  const [isExpanded, setIsExpanded] = useState(false);
   const [undoing, setUndoing] = useState(false);
+  const panelId = useId();
+
+  const toggle = () => setIsExpanded((open) => !open);
+
+  // The header strip is tappable, so anything interactive sitting inside it has
+  // to keep its own click from reaching the toggle.
+  const stop = (event: React.MouseEvent) => event.stopPropagation();
 
   return (
-    <article className="rounded-[26px] border border-slate-200 bg-white p-4 shadow-sm shadow-slate-200/50">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-black text-slate-900">{member.full_name}</h2>
+    <article className="overflow-hidden rounded-[26px] border border-slate-200 bg-white shadow-sm shadow-slate-200/50">
+      <div
+        onClick={toggle}
+        className="flex cursor-pointer items-start justify-between gap-3 p-4 transition-colors active:bg-slate-50"
+      >
+        <div className="min-w-0">
+          {/* Plain heading: the chevron below is the single disclosure control,
+              so assistive tech announces one toggle per card rather than two.
+              The surrounding strip stays tappable as a thumb target. */}
+          <h2 className="truncate text-lg font-black text-slate-900">{member.full_name}</h2>
+
           <div className="mt-1 flex flex-col gap-0.5">
             <a
               href={`tel:${member.phone}`}
-              className="text-sm font-medium text-slate-600 underline decoration-slate-400 underline-offset-4"
+              onClick={stop}
+              className="w-fit text-sm font-medium text-slate-600 underline decoration-slate-400 underline-offset-4"
             >
               {member.phone}
             </a>
@@ -585,96 +601,161 @@ function MemberCard({
               statusMeta ? statusMeta.color : "border-slate-200 bg-slate-100 text-slate-400"
             }`}
           >
-            {statusMeta ? statusMeta.label : "––"}
+            {statusMeta ? statusMeta.label : "\u2013\u2013"}
           </span>
+
           <button
             type="button"
-            onClick={() => onEdit(member)}
+            onClick={(event) => {
+              stop(event);
+              onEdit(member);
+            }}
             aria-label={`Edit ${member.full_name}`}
             className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-sm text-slate-600 transition active:scale-[0.95]"
           >
             &#9998;
           </button>
-        </div>
-      </div>
 
-      <div className="mt-4 grid grid-cols-2 gap-3">
-        <InfoTile
-          label="Current Weight"
-          value={member.current_weight === null ? "Not set" : `${member.current_weight} kg`}
-        />
-        <InfoTile
-          label="Goal Weight"
-          value={member.target_weight === null ? "Not set" : `${member.target_weight} kg`}
-        />
-      </div>
-
-      <div className="mt-3 space-y-3">
-        <PlanSelect
-          label="Workout"
-          plans={workoutPlans}
-          value={member.workout_plan_id}
-          onChange={(planId) => assignPlan(member.id, "workout", planId)}
-        />
-        <PlanSelect
-          label="Nutrition"
-          plans={nutritionPlans}
-          value={member.nutrition_plan_id}
-          onChange={(planId) => assignPlan(member.id, "nutrition", planId)}
-        />
-      </div>
-
-      <div className="mt-4 flex gap-2">
-        <LinkButton href={reminderUrl} label="&#128172; Remind Dues" disabledHint="No valid phone number on file" />
-        <button
-          type="button"
-          onClick={() => onRenew(member)}
-          className="flex-1 rounded-2xl bg-slate-900 px-3 py-3 text-xs font-black text-white shadow-sm shadow-slate-200 transition active:scale-[0.98]"
-        >
-          &#9889; Renew ({formatCurrency(member.monthly_fee)})
-        </button>
-      </div>
-
-      {lastPayment && (
-        <div className="mt-3 flex items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
-          <p className="text-[11px] font-bold text-slate-500">
-            Paid {formatCurrency(lastPayment.amount)} on {formatDueDate(lastPayment.payment_date)}
-          </p>
           <button
             type="button"
-            onClick={() => (undoing ? undoPayment(lastPayment.id) : setUndoing(true))}
-            onBlur={() => undoing && setUndoing(false)}
-            className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-black transition ${
-              undoing ? "bg-rose-500 text-white" : "text-slate-500 underline underline-offset-2"
-            }`}
+            onClick={(event) => {
+              stop(event);
+              toggle();
+            }}
+            aria-expanded={isExpanded}
+            aria-controls={panelId}
+            aria-label={`${isExpanded ? "Hide" : "Show"} details for ${member.full_name}`}
+            className="flex h-8 w-8 items-center justify-center rounded-full text-slate-400 transition active:scale-[0.95]"
           >
-            {undoing ? "Confirm undo" : "Undo"}
+            <svg
+              viewBox="0 0 16 16"
+              aria-hidden="true"
+              className={`h-3.5 w-3.5 transition-transform duration-200 ${
+                isExpanded ? "rotate-180" : ""
+              }`}
+            >
+              <path
+                d="M3 6l5 5 5-5"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
           </button>
         </div>
-      )}
+      </div>
 
-      <div className="mt-2 flex gap-2">
-        <LinkButton
-          href={planUrl}
-          label="&#128203; Send Plan"
-          disabledHint="Assign a workout or nutrition plan first"
-        />
-        {canRecommend ? (
-          <button
-            type="button"
-            onClick={() => onRecommend(member)}
-            className="flex-1 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-center text-xs font-black text-slate-700 transition active:scale-[0.98]"
-          >
-            &#128717; Recommend
-          </button>
-        ) : (
-          <span
-            title="Add an active product in the Products tab first"
-            className="flex-1 rounded-2xl border border-slate-200 bg-slate-100 px-3 py-3 text-center text-xs font-black text-slate-400"
-          >
-            &#128717; Recommend
-          </span>
-        )}
+      {/* 0fr -> 1fr animates to the content's natural height, which a plain
+          height transition cannot do. `inert` keeps the collapsed controls out
+          of the tab order. */}
+      <div
+        id={panelId}
+        inert={!isExpanded}
+        className={`grid transition-all duration-200 ease-out ${
+          isExpanded ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
+        }`}
+      >
+        <div className="overflow-hidden">
+          <div className="px-4 pb-4">
+            <div className="grid grid-cols-2 gap-3">
+              <InfoTile
+                label="Current Weight"
+                value={member.current_weight === null ? "Not set" : `${member.current_weight} kg`}
+              />
+              <InfoTile
+                label="Goal Weight"
+                value={member.target_weight === null ? "Not set" : `${member.target_weight} kg`}
+              />
+            </div>
+
+            <div className="mt-3 space-y-3">
+              <PlanSelect
+                label="Workout"
+                plans={workoutPlans}
+                value={member.workout_plan_id}
+                onChange={(planId) => assignPlan(member.id, "workout", planId)}
+              />
+              <PlanSelect
+                label="Nutrition"
+                plans={nutritionPlans}
+                value={member.nutrition_plan_id}
+                onChange={(planId) => assignPlan(member.id, "nutrition", planId)}
+              />
+            </div>
+
+            <div className="mt-4 flex gap-2">
+              <LinkButton
+                href={reminderUrl}
+                label="&#128172; Remind Dues"
+                disabledHint="No valid phone number on file"
+                onClick={stop}
+              />
+              <button
+                type="button"
+                onClick={(event) => {
+                  stop(event);
+                  onRenew(member);
+                }}
+                className="flex-1 rounded-2xl bg-slate-900 px-3 py-3 text-xs font-black text-white shadow-sm shadow-slate-200 transition active:scale-[0.98]"
+              >
+                &#9889; Renew ({formatCurrency(member.monthly_fee)})
+              </button>
+            </div>
+
+            {lastPayment && (
+              <div className="mt-3 flex items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
+                <p className="text-[11px] font-bold text-slate-500">
+                  Paid {formatCurrency(lastPayment.amount)} on{" "}
+                  {formatDueDate(lastPayment.payment_date)}
+                </p>
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    stop(event);
+                    if (undoing) undoPayment(lastPayment.id);
+                    else setUndoing(true);
+                  }}
+                  onBlur={() => undoing && setUndoing(false)}
+                  className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-black transition ${
+                    undoing ? "bg-rose-500 text-white" : "text-slate-500 underline underline-offset-2"
+                  }`}
+                >
+                  {undoing ? "Confirm undo" : "Undo"}
+                </button>
+              </div>
+            )}
+
+            <div className="mt-2 flex gap-2">
+              <LinkButton
+                href={planUrl}
+                label="&#128203; Send Plan"
+                disabledHint="Assign a workout or nutrition plan first"
+                onClick={stop}
+              />
+              {canRecommend ? (
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    stop(event);
+                    onRecommend(member);
+                  }}
+                  className="flex-1 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-center text-xs font-black text-slate-700 transition active:scale-[0.98]"
+                >
+                  &#128717; Recommend
+                </button>
+              ) : (
+                <span
+                  title="Add an active product in the Products tab first"
+                  className="flex-1 rounded-2xl border border-slate-200 bg-slate-100 px-3 py-3 text-center text-xs font-black text-slate-400"
+                >
+                  &#128717; Recommend
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
     </article>
   );
@@ -2083,11 +2164,13 @@ function LinkButton({
   label,
   full = false,
   disabledHint,
+  onClick,
 }: {
   href: string | null;
   label: string;
   full?: boolean;
   disabledHint?: string;
+  onClick?: (event: React.MouseEvent) => void;
 }) {
   const base = `rounded-2xl border px-3 py-3 text-center text-xs font-black transition ${
     full ? "block w-full px-4 text-sm" : "flex-1"
@@ -2106,6 +2189,7 @@ function LinkButton({
       href={href}
       target="_blank"
       rel="noopener noreferrer"
+      onClick={onClick}
       className={`${base} border-slate-200 bg-slate-50 text-slate-700 active:scale-[0.98]`}
     >
       {label}
